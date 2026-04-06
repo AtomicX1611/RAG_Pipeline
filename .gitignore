@@ -55,4 +55,7 @@ __pypackages__/
 # Documents
 docs/
 
+# Vector Database
+db/
+
 
