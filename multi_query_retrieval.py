@@ -59,7 +59,7 @@ for i, query in enumerate(query_variations, 1):
     print("-" * 50)
 
 print("\n" + "="*60)
-print("Multi-Query Retrieval Complete!")
+print("Multi-Query Retrieval Complete")
 
 
 # The results will be like this , so we can do reranking across the different queries
