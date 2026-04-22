@@ -1,0 +1,22 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.18
+python-jose[cryptography]==3.3.0
+google-auth==2.37.0
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# LangChain / AI
+langchain==0.3.13
+langchain-openai==0.2.14
+langchain-chroma==0.1.4
+langchain-experimental==0.3.4
+langchain-community==0.3.13
+openai==1.58.1
+
+# Document loading & vector store
+chromadb==0.5.23
+pypdf==5.1.0
+
+# Utilities
+httpx==0.28.1
