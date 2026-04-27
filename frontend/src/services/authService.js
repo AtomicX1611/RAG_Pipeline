@@ -5,7 +5,7 @@
 import api from './api';
 import { MOCK_USER } from '../utils/mockData';
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 /**
  * Authenticate with a Google credential token.

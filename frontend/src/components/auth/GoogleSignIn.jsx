@@ -1,11 +1,21 @@
 /**
- * Google Sign-In button (UI only — no real OAuth integration yet).
+ * Google Sign-In button
  */
+import { useGoogleLogin } from '@react-oauth/google';
+
 export default function GoogleSignIn({ onSignIn, loading = false }) {
+  const login = useGoogleLogin({
+    onSuccess: (tokenResponse) => {
+      // Send the credential straight to your backend
+      onSignIn(tokenResponse.access_token);
+    },
+    onError: (error) => console.log('Login Failed:', error),
+  });
+
   return (
     <button
       id="google-signin-button"
-      onClick={() => onSignIn('mock-google-credential')}
+      onClick={() => login()}
       disabled={loading}
       className="group relative flex items-center justify-center gap-3 w-full
                  px-6 py-3.5 rounded-2xl

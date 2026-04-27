@@ -1,0 +1,7 @@
+config FAIL: No module named 'pydantic_settings'
+schemas FAIL: No module named 'pydantic'
+exceptions FAIL: No module named 'fastapi'
+vector_repo FAIL: No module named 'langchain_chroma'
+auth_service FAIL: No module named 'jose'
+auth_router FAIL: No module named 'fastapi'
+main FAIL: No module named 'fastapi'

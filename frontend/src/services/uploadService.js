@@ -4,7 +4,7 @@
  */
 import api from './api';
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 /**
  * Upload files with a specified chunking strategy.

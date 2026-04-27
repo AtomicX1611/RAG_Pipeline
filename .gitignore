@@ -39,6 +39,11 @@ env/
 .env.*
 !.env.example
 
+# Node / JS
+node_modules/
+npm-debug.log
+yarn-error.log
+
 # IDEs / editors
 .vscode/
 .idea/
@@ -57,5 +62,8 @@ docs/
 
 # Vector Database
 db/
+
+# File uploads (temp)
+uploads/
 
 

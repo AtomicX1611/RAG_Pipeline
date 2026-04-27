@@ -5,7 +5,7 @@
 import api from './api';
 import { generateMockResponse, MOCK_CONVERSATIONS } from '../utils/mockData';
 
-const USE_MOCK = true; // flip to false once backend is live
+const USE_MOCK = false; // flip to false once backend is live
 
 /**
  * Send a chat message and receive an AI response.
