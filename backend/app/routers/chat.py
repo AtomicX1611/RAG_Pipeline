@@ -28,9 +28,11 @@ async def chat(
     grounded in the user's uploaded documents.
     """
     conversation_id = body.conversation_id or f"conv-{user.id}-default"
+    workspace_id = body.workspace_id or "default"
 
     return await rag_service.answer(
         user_id=user.id,
+        workspace_id=workspace_id,
         conversation_id=conversation_id,
         message=body.message,
         retrieval_method=body.retrieval_method,
@@ -50,10 +52,12 @@ async def chat_stream(
     The stream ends with 'data: [DONE]'.
     """
     conversation_id = body.conversation_id or f"conv-{user.id}-default"
+    workspace_id = body.workspace_id or "default"
 
     return StreamingResponse(
         rag_service.answer_stream(
             user_id=user.id,
+            workspace_id=workspace_id,
             conversation_id=conversation_id,
             message=body.message,
             retrieval_method=body.retrieval_method,

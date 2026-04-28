@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .dependencies import create_services
 from .middleware.logging_middleware import LoggingMiddleware
-from .routers import analytics, auth, chat, conversations, documents, upload
+from .routers import analytics, auth, chat, conversations, documents, upload, workspaces
 from .utils.exceptions import register_exception_handlers
 from .utils.logging_config import setup_logging, get_logger
 
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     services = create_services(settings)
     for name, svc in services.items():
         setattr(app.state, name, svc)
-    logger.info("Services initialised: %s", ", ".join(services))
+    logger.info("Services initialised: %s", ", ".join(services.keys()))
 
     yield  # ← app is running
 
@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────────────
     app.include_router(auth.router)
+    app.include_router(workspaces.router)
     app.include_router(upload.router)
     app.include_router(chat.router)
     app.include_router(conversations.router)

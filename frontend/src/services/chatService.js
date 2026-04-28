@@ -11,6 +11,7 @@ import { API_BASE_URL } from '../utils/constants';
 export async function sendMessage(conversationId, message, options = {}) {
   const { data } = await api.post('/api/chat', {
     conversation_id: conversationId,
+    workspace_id: options.workspaceId || 'default',
     message,
     chunking_strategy: options.chunkingStrategy || 'recursive',
     retrieval_method: options.retrievalMethod || 'similarity',
@@ -33,6 +34,7 @@ export function sendMessageStream(
 
   const body = JSON.stringify({
     conversation_id: conversationId,
+    workspace_id: options.workspaceId || 'default',
     message,
     chunking_strategy: options.chunkingStrategy || 'recursive',
     retrieval_method: options.retrievalMethod || 'similarity',
@@ -110,18 +112,22 @@ export function sendMessageStream(
 }
 
 /**
- * Fetch all conversations for the current user.
+ * Fetch all conversations for the current user, optionally filtered by workspace.
  */
-export async function getConversations() {
-  const { data } = await api.get('/api/conversations');
+export async function getConversations(workspaceId = null) {
+  const params = workspaceId ? { workspace_id: workspaceId } : {};
+  const { data } = await api.get('/api/conversations', { params });
   return data;
 }
 
 /**
- * Create a new conversation.
+ * Create a new conversation, optionally scoped to a workspace.
  */
-export async function createConversation(title = 'New Conversation') {
-  const { data } = await api.post('/api/conversations', { title });
+export async function createConversation(title = 'New Conversation', workspaceId = 'default') {
+  const { data } = await api.post('/api/conversations', {
+    title,
+    workspace_id: workspaceId,
+  });
   return data;
 }
 

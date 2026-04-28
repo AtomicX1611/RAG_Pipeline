@@ -42,11 +42,12 @@ class UploadService:
     async def process_upload(
         self,
         user_id: str,
+        workspace_id: str,
         files: list[UploadFile],
         chunking_strategy: str = "recursive",
     ) -> dict:
         """
-        Save, extract text, chunk, and embed uploaded files.
+        Save, extract text, chunk, and embed uploaded files scoped to a workspace.
 
         Returns ``{ success: bool, filesProcessed: int, message: str }``.
         """
@@ -71,14 +72,14 @@ class UploadService:
                     source=file.filename or "upload",
                 )
 
-                stored = self._vector_repo.store_documents(user_id, chunks)
+                stored = self._vector_repo.store_documents(user_id, workspace_id, chunks)
                 total_chunks += stored
                 processed += 1
                 if file.filename:
                     processed_filenames.append(file.filename)
                 logger.info(
-                    "Processed %s → %d chunks (strategy=%s)",
-                    file.filename, stored, chunking_strategy,
+                    "Processed %s → %d chunks (strategy=%s) to workspace %s",
+                    file.filename, stored, chunking_strategy, workspace_id
                 )
             except FileValidationError:
                 raise

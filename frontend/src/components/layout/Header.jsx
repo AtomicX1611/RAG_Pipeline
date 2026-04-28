@@ -1,23 +1,39 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
+import { useWorkspace } from '../../store/WorkspaceContext';
 
 const PAGE_TITLES = {
   '/chat': 'Chat',
+  '/workspaces': 'Workspaces',
   '/documents': 'Knowledge Base',
   '/analytics': 'Analytics',
   '/settings': 'Settings',
 };
 
+const WS_COLOR_TEXT = {
+  violet: 'text-violet-400', blue: 'text-blue-400', emerald: 'text-emerald-400',
+  rose: 'text-rose-400', amber: 'text-amber-400', cyan: 'text-cyan-400',
+  pink: 'text-pink-400', indigo: 'text-indigo-400',
+};
+const WS_COLOR_DOT = {
+  violet: 'bg-violet-500', blue: 'bg-blue-500', emerald: 'bg-emerald-500',
+  rose: 'bg-rose-500', amber: 'bg-amber-500', cyan: 'bg-cyan-500',
+  pink: 'bg-pink-500', indigo: 'bg-indigo-500',
+};
+
 /**
- * Top header bar — sidebar toggle, page title, and quick actions.
+ * Top header bar — sidebar toggle, page title, workspace badge, and quick actions.
  */
 export default function Header() {
   const { toggleSidebar, showUploadZone, setShowUploadZone } = useApp();
+  const { activeWorkspace } = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
 
   const pageTitle = PAGE_TITLES[location.pathname] || 'NeuralSearch';
   const isChat = location.pathname === '/chat';
+  const wsColor = activeWorkspace?.color || 'violet';
+
 
   return (
     <header
@@ -26,7 +42,7 @@ export default function Header() {
                  border-b border-[var(--color-border-primary)]
                  bg-[var(--color-bg-secondary)]/80 backdrop-blur-sm"
     >
-      {/* Left: Sidebar toggle + Page title */}
+      {/* Left: Sidebar toggle + Page title + Workspace badge */}
       <div className="flex items-center gap-3">
         <button
           id="sidebar-toggle"
@@ -41,6 +57,16 @@ export default function Header() {
           </svg>
         </button>
         <span className="text-sm font-semibold text-[var(--color-text-primary)]">{pageTitle}</span>
+        {/* Workspace badge */}
+        {activeWorkspace && (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                          bg-[var(--color-bg-elevated)] border border-[var(--color-border-primary)]">
+            <span className={`w-2 h-2 rounded-full ${WS_COLOR_DOT[wsColor] || 'bg-violet-500'}`} />
+            <span className={`text-[11px] font-medium ${WS_COLOR_TEXT[wsColor] || 'text-violet-400'}`}>
+              {activeWorkspace.name}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Right: Actions */}

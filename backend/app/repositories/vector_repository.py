@@ -37,15 +37,16 @@ class VectorRepository:
 
     # ── helpers ───────────────────────────────────────────────────────────
 
-    def _collection_name(self, user_id: str) -> str:
-        """Deterministic collection name scoped to a user."""
+    def _collection_name(self, user_id: str, workspace_id: str) -> str:
+        """Deterministic collection name scoped to a user and workspace."""
         # Chroma collection names: 3-63 chars, alphanumeric + underscores
-        safe = user_id.replace("-", "_").replace(".", "_")[:50]
-        return f"user_{safe}"
+        safe_user = user_id.replace("-", "_").replace(".", "_")[:25]
+        safe_ws = workspace_id.replace("-", "_").replace(".", "_")[:32]
+        return f"u_{safe_user}_w_{safe_ws}"
 
-    def _get_store(self, user_id: str) -> Chroma:
+    def _get_store(self, user_id: str, workspace_id: str) -> Chroma:
         return Chroma(
-            collection_name=self._collection_name(user_id),
+            collection_name=self._collection_name(user_id, workspace_id),
             embedding_function=self._embeddings,
             persist_directory=self._persist_dir,
             collection_metadata={"hnsw:space": "cosine"},
@@ -53,46 +54,46 @@ class VectorRepository:
 
     # ── public API ────────────────────────────────────────────────────────
 
-    def store_documents(self, user_id: str, chunks: list[Document]) -> int:
+    def store_documents(self, user_id: str, workspace_id: str, chunks: list[Document]) -> int:
         """Embed and store document chunks.  Returns the number stored."""
         if not chunks:
             return 0
 
-        store = self._get_store(user_id)
+        store = self._get_store(user_id, workspace_id)
         store.add_documents(chunks)
         count = len(chunks)
-        logger.info("Stored %d chunks for user %s", count, user_id)
+        logger.info("Stored %d chunks for user %s in workspace %s", count, user_id, workspace_id)
         return count
 
-    def get_retriever(self, user_id: str, *, k: int = 5, **kwargs):
-        """Return a LangChain retriever scoped to the user's collection."""
-        store = self._get_store(user_id)
+    def get_retriever(self, user_id: str, workspace_id: str, *, k: int = 5, **kwargs):
+        """Return a LangChain retriever scoped to the user's workspace collection."""
+        store = self._get_store(user_id, workspace_id)
         search_kwargs = {"k": k, **kwargs}
         return store.as_retriever(search_kwargs=search_kwargs)
 
     def similarity_search_with_score(
-        self, user_id: str, query: str, *, k: int = 5,
+        self, user_id: str, workspace_id: str, query: str, *, k: int = 5,
     ) -> list[tuple[Document, float]]:
         """Return (Document, score) pairs for ranking/RRF."""
-        store = self._get_store(user_id)
+        store = self._get_store(user_id, workspace_id)
         return store.similarity_search_with_relevance_scores(query, k=k)
 
-    def collection_count(self, user_id: str) -> int:
-        """Return the number of documents in the user's collection."""
-        store = self._get_store(user_id)
+    def collection_count(self, user_id: str, workspace_id: str) -> int:
+        """Return the number of documents in the user's workspace collection."""
+        store = self._get_store(user_id, workspace_id)
         try:
             count = store._collection.count()
-            logger.info("Found %d items in collection for user %s", count, user_id)
+            logger.info("Found %d items in collection for user %s, workspace %s", count, user_id, workspace_id)
             return count
         except Exception as e:
-            logger.error("Error getting collection count for user %s: %s", user_id, str(e), exc_info=True)
+            logger.error("Error getting collection count for user %s, workspace %s: %s", user_id, workspace_id, str(e), exc_info=True)
             return 0
 
-    def delete_collection(self, user_id: str) -> None:
-        """Remove a user's entire collection."""
-        store = self._get_store(user_id)
+    def delete_collection(self, user_id: str, workspace_id: str) -> None:
+        """Remove a user's entire workspace collection."""
+        store = self._get_store(user_id, workspace_id)
         try:
             store.delete_collection()
-            logger.info("Deleted collection for user %s", user_id)
+            logger.info("Deleted collection for user %s, workspace %s", user_id, workspace_id)
         except Exception as exc:
-            logger.warning("Could not delete collection for user %s: %s", user_id, exc)
+            logger.warning("Could not delete collection for user %s, workspace %s: %s", user_id, workspace_id, exc)

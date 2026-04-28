@@ -56,7 +56,7 @@ class RAGService:
         )
 
     async def answer(
-        self, user_id: str, conversation_id: str,
+        self, user_id: str, workspace_id: str, conversation_id: str,
         message: str, retrieval_method: str = "similarity",
     ) -> ChatResponse:
         if retrieval_method not in VALID_RETRIEVAL_METHODS:
@@ -65,7 +65,7 @@ class RAGService:
         history = await self._conv_repo.get_messages(user_id, conversation_id)
         search_query = self._rewrite_query(message, history)
 
-        doc_score_pairs = self._retrieve(user_id, search_query, retrieval_method)
+        doc_score_pairs = self._retrieve(user_id, workspace_id, search_query, retrieval_method)
 
         if not doc_score_pairs:
             text = (
@@ -79,7 +79,7 @@ class RAGService:
         answer_text = self._generate_answer(message, docs, history)
         sources = self._build_sources(doc_score_pairs)
 
-        await self._persist(user_id, conversation_id, message, answer_text)
+        await self._persist(user_id, conversation_id, message, answer_text, workspace_id=workspace_id)
 
         # Record analytics
         if self._analytics:
@@ -88,7 +88,7 @@ class RAGService:
         return ChatResponse(answer=answer_text, sources=sources)
 
     async def answer_stream(
-        self, user_id: str, conversation_id: str,
+        self, user_id: str, workspace_id: str, conversation_id: str,
         message: str, retrieval_method: str = "similarity",
     ) -> AsyncGenerator[str, None]:
         """Stream answer tokens as Server-Sent Events."""
@@ -100,7 +100,7 @@ class RAGService:
         try:
             history = await self._conv_repo.get_messages(user_id, conversation_id)
             search_query = self._rewrite_query(message, history)
-            doc_score_pairs = self._retrieve(user_id, search_query, retrieval_method)
+            doc_score_pairs = self._retrieve(user_id, workspace_id, search_query, retrieval_method)
         except RAGPipelineError as exc:
             err_msg = str(exc)
             if "401" in err_msg or "invalid_api_key" in err_msg or "Incorrect API key" in err_msg:
@@ -157,7 +157,7 @@ class RAGService:
 
         # Persist after streaming completes (even partial answers)
         if full_answer:
-            await self._persist(user_id, conversation_id, message, full_answer)
+            await self._persist(user_id, conversation_id, message, full_answer, workspace_id=workspace_id)
         if self._analytics:
             self._analytics.record_query(user_id, retrieval_method)
 
@@ -182,32 +182,32 @@ class RAGService:
 
     # ── retrieval dispatch ────────────────────────────────────────────────
 
-    def _retrieve(self, uid: str, q: str, method: str):
+    def _retrieve(self, uid: str, wid: str, q: str, method: str):
         try:
             if method == "similarity":
-                return self._vector_repo.similarity_search_with_score(uid, q, k=5)
+                return self._vector_repo.similarity_search_with_score(uid, wid, q, k=5)
             if method == "multi_query":
-                return self._multi_query(uid, q)
+                return self._multi_query(uid, wid, q)
             if method == "rrf":
-                return self._rrf(uid, q)
+                return self._rrf(uid, wid, q)
         except Exception as exc:
             logger.error("Retrieval (%s) failed: %s", method, exc)
             raise RAGPipelineError(f"Retrieval failed: {exc}") from exc
         return []
 
-    def _multi_query(self, uid: str, q: str, k: int = 5):
+    def _multi_query(self, uid: str, wid: str, q: str, k: int = 5):
         variations = self._query_variations(q)
         seen: dict[str, tuple[Document, float]] = {}
         for v in variations:
-            for doc, score in self._vector_repo.similarity_search_with_score(uid, v, k=k):
+            for doc, score in self._vector_repo.similarity_search_with_score(uid, wid, v, k=k):
                 key = doc.page_content
                 if key not in seen or score > seen[key][1]:
                     seen[key] = (doc, score)
         return sorted(seen.values(), key=lambda x: x[1], reverse=True)[:k]
 
-    def _rrf(self, uid: str, q: str, k: int = 5, rrf_k: int = 60):
+    def _rrf(self, uid: str, wid: str, q: str, k: int = 5, rrf_k: int = 60):
         variations = self._query_variations(q)
-        retriever = self._vector_repo.get_retriever(uid, k=k)
+        retriever = self._vector_repo.get_retriever(uid, wid, k=k)
         all_results = [retriever.invoke(v) for v in variations]
 
         scores: dict[str, float] = defaultdict(float)
@@ -276,6 +276,6 @@ class RAGService:
             for d, s in pairs[:5]
         ]
 
-    async def _persist(self, uid: str, cid: str, q: str, a: str) -> None:
-        await self._conv_repo.add_message(uid, cid, "user", q)
-        await self._conv_repo.add_message(uid, cid, "assistant", a)
+    async def _persist(self, uid: str, cid: str, q: str, a: str, workspace_id: str = "default") -> None:
+        await self._conv_repo.add_message(uid, cid, "user", q, workspace_id=workspace_id)
+        await self._conv_repo.add_message(uid, cid, "assistant", a, workspace_id=workspace_id)

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
-import { ChatProvider } from './store/ChatContext';
+import { WorkspaceProvider, useWorkspace } from './store/WorkspaceContext';
+import { ChatProvider, useChat } from './store/ChatContext';
 import { AppProvider } from './store/AppContext';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -8,6 +9,25 @@ import ChatPage from './pages/ChatPage';
 import DocumentsPage from './pages/DocumentsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
+import WorkspacesPage from './pages/WorkspacesPage';
+import { useEffect } from 'react';
+
+/**
+ * Bridges the active workspace from WorkspaceContext into ChatContext.
+ * Must be rendered inside both providers.
+ */
+function WorkspaceChatBridge() {
+  const { activeWorkspace } = useWorkspace();
+  const { setActiveWorkspaceId } = useChat();
+
+  useEffect(() => {
+    if (activeWorkspace?.id) {
+      setActiveWorkspaceId(activeWorkspace.id);
+    }
+  }, [activeWorkspace?.id, setActiveWorkspaceId]);
+
+  return null;
+}
 
 /**
  * Redirect to login if not authenticated.
@@ -58,6 +78,7 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/chat" replace />} />
         <Route path="chat" element={<ChatPage />} />
+        <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
@@ -71,11 +92,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ChatProvider>
-          <AppProvider>
-            <AppRoutes />
-          </AppProvider>
-        </ChatProvider>
+        <WorkspaceProvider>
+          <ChatProvider>
+            <AppProvider>
+              <WorkspaceChatBridge />
+              <AppRoutes />
+            </AppProvider>
+          </ChatProvider>
+        </WorkspaceProvider>
       </AuthProvider>
     </BrowserRouter>
   );

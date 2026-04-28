@@ -1,8 +1,9 @@
 """
-In-memory conversation & message storage.
+In-memory conversation & message storage, scoped to user + workspace.
 
-Conversations are keyed per-user so each authenticated account sees only its
-own history.  Data is lost on server restart (acceptable for dev/demo).
+Conversations are keyed per-user and per-workspace so each workspace has its
+own independent conversation history.  Data is lost on server restart
+(acceptable for dev/demo).
 
 Thread-safe via asyncio.Lock.
 """
@@ -32,6 +33,7 @@ class Message:
 class Conversation:
     id: str
     title: str
+    workspace_id: str = "default"
     preview: str = ""
     created_at: str = ""
     message_count: int = 0
@@ -42,6 +44,7 @@ class Conversation:
         return {
             "id": self.id,
             "title": self.title,
+            "workspace_id": self.workspace_id,
             "preview": self.preview,
             "createdAt": self.created_at,
             "messageCount": self.message_count,
@@ -49,7 +52,7 @@ class Conversation:
 
 
 class ConversationRepository:
-    """Per-user in-memory conversation store."""
+    """Per-user, per-workspace in-memory conversation store."""
 
     def __init__(self) -> None:
         # { user_id: { conv_id: Conversation } }
@@ -57,20 +60,32 @@ class ConversationRepository:
         self._lock = asyncio.Lock()
         logger.info("ConversationRepository initialised (in-memory)")
 
-    async def create(self, user_id: str, title: str = "New Conversation") -> Conversation:
+    async def create(
+        self,
+        user_id: str,
+        title: str = "New Conversation",
+        workspace_id: str = "default",
+    ) -> Conversation:
         async with self._lock:
             conv = Conversation(
                 id=str(uuid.uuid4()),
                 title=title,
+                workspace_id=workspace_id,
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
             self._store[user_id][conv.id] = conv
-            logger.debug("Created conversation %s for user %s", conv.id, user_id)
+            logger.debug(
+                "Created conversation %s (ws=%s) for user %s",
+                conv.id, workspace_id, user_id,
+            )
             return conv
 
-    async def get_all(self, user_id: str) -> list[Conversation]:
+    async def get_all(self, user_id: str, workspace_id: str | None = None) -> list[Conversation]:
+        """Return conversations for a user, optionally filtered to a workspace."""
         async with self._lock:
             convs = list(self._store[user_id].values())
+        if workspace_id is not None:
+            convs = [c for c in convs if c.workspace_id == workspace_id]
         # newest first
         convs.sort(key=lambda c: c.created_at, reverse=True)
         return convs
@@ -88,14 +103,16 @@ class ConversationRepository:
 
     async def add_message(
         self, user_id: str, conv_id: str, role: str, content: str,
+        workspace_id: str = "default",
     ) -> Message:
         async with self._lock:
             conv = self._store[user_id].get(conv_id)
             if conv is None:
-                # Auto-create conversation
+                # Auto-create conversation scoped to the given workspace
                 conv = Conversation(
                     id=conv_id,
                     title="New Conversation",
+                    workspace_id=workspace_id,
                     created_at=datetime.now(timezone.utc).isoformat(),
                 )
                 self._store[user_id][conv_id] = conv

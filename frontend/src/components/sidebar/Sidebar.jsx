@@ -1,10 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import ConversationItem from './ConversationItem';
+import WorkspacePanel from './WorkspacePanel';
 import { useAuth } from '../../store/AuthContext';
 import { APP_NAME } from '../../utils/constants';
 
 /**
- * Left sidebar — navigation, conversation history, user profile.
+ * Left sidebar — workspace switcher, navigation, conversation history, user profile.
  */
 export default function Sidebar({
   conversations,
@@ -43,15 +44,19 @@ export default function Sidebar({
                     lg:relative lg:translate-x-0
                     ${isOpen ? 'translate-x-0' : '-translate-x-full lg:hidden'}`}
       >
-        {/* Logo + New Chat */}
-        <div className="p-4 space-y-3">
-          <div className="flex items-center gap-2.5">
+        {/* Logo */}
+        <div className="p-4 pb-3">
+          <div className="flex items-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
               <span className="text-white font-bold text-sm">N</span>
             </div>
             <h1 className="text-lg font-semibold gradient-text">{APP_NAME}</h1>
           </div>
 
+          {/* Workspace switcher */}
+          <WorkspacePanel />
+
+          {/* New Chat button */}
           <button
             id="new-chat-button"
             onClick={handleNewChat}
@@ -111,6 +116,9 @@ export default function Sidebar({
                 </svg>
               </div>
               <p className="text-xs text-[var(--color-text-tertiary)]">No conversations yet</p>
+              <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1 opacity-70">
+                Start a new chat above
+              </p>
             </div>
           ) : (
             conversations.map((conv) => (
@@ -166,6 +174,7 @@ export default function Sidebar({
 
 const NAV_LINKS = [
   { to: '/chat', label: 'Chat', icon: '💬' },
+  { to: '/workspaces', label: 'Workspaces', icon: '🗂️' },
   { to: '/documents', label: 'Documents', icon: '📁' },
   { to: '/analytics', label: 'Analytics', icon: '📊' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },

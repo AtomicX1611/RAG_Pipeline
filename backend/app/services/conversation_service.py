@@ -13,17 +13,25 @@ logger = get_logger(__name__)
 
 
 class ConversationService:
-    """CRUD operations for conversations, scoped to a user."""
+    """CRUD operations for conversations, scoped to a user (and optionally a workspace)."""
 
     def __init__(self, conversation_repo: ConversationRepository) -> None:
         self._repo = conversation_repo
 
-    async def create(self, user_id: str, title: str = "New Conversation") -> ConversationResponse:
-        conv = await self._repo.create(user_id, title)
+    async def create(
+        self,
+        user_id: str,
+        title: str = "New Conversation",
+        workspace_id: str = "default",
+    ) -> ConversationResponse:
+        conv = await self._repo.create(user_id, title, workspace_id=workspace_id)
         return ConversationResponse(**conv.to_response_dict())
 
-    async def list_all(self, user_id: str) -> list[ConversationResponse]:
-        convs = await self._repo.get_all(user_id)
+    async def list_all(
+        self, user_id: str, workspace_id: str | None = None
+    ) -> list[ConversationResponse]:
+        """Return all conversations for a user, optionally filtered by workspace."""
+        convs = await self._repo.get_all(user_id, workspace_id=workspace_id)
         return [ConversationResponse(**c.to_response_dict()) for c in convs]
 
     async def delete(self, user_id: str, conv_id: str) -> None:

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../store/AppContext';
+import { useWorkspace } from '../store/WorkspaceContext';
 import FileUpload from '../components/upload/FileUpload';
 import ChunkingSelector from '../components/settings/ChunkingSelector';
 import { useFileUpload } from '../hooks/useFileUpload';
@@ -10,6 +11,7 @@ import * as documentsService from '../services/documentsService';
  */
 export default function DocumentsPage() {
   const { chunkingStrategy, setChunkingStrategy } = useApp();
+  const { activeWorkspace, refreshWorkspaces } = useWorkspace();
   const {
     uploadedFiles,
     uploading,
@@ -27,17 +29,19 @@ export default function DocumentsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
+  const workspaceId = activeWorkspace?.id || 'default';
+
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const data = await documentsService.getDocumentStats();
+      const data = await documentsService.getDocumentStats(workspaceId);
       setStats(data);
     } catch {
       setStats({ totalChunks: 0, hasDocuments: false, message: 'Could not load stats.' });
     } finally {
       setLoadingStats(false);
     }
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     fetchStats();
@@ -46,9 +50,10 @@ export default function DocumentsPage() {
   const handleUpload = useCallback(async () => {
     await upload();
     await fetchStats();
+    await refreshWorkspaces(); // update doc count in workspace panel
     setSuccessMsg('Documents uploaded and indexed successfully!');
     setTimeout(() => setSuccessMsg(''), 3000);
-  }, [upload, fetchStats]);
+  }, [upload, fetchStats, refreshWorkspaces]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) {
@@ -57,23 +62,32 @@ export default function DocumentsPage() {
     }
     setDeleting(true);
     try {
-      await documentsService.deleteAllDocuments();
+      await documentsService.deleteAllDocuments(workspaceId);
       await fetchStats();
+      await refreshWorkspaces();
       setSuccessMsg('All documents deleted.');
       setTimeout(() => setSuccessMsg(''), 3000);
     } finally {
       setDeleting(false);
       setDeleteConfirm(false);
     }
-  }, [deleteConfirm, fetchStats]);
+  }, [deleteConfirm, fetchStats, workspaceId, refreshWorkspaces]);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto w-full px-6 py-8 space-y-8">
         {/* Page header */}
         <div className="animate-fade-in">
-          <h1 className="text-3xl font-bold gradient-text mb-2">Knowledge Base</h1>
-          <p className="text-[var(--color-text-secondary)] text-sm">
+          <h1 className="text-3xl font-bold gradient-text mb-1">Knowledge Base</h1>
+          {activeWorkspace && (
+            <p className="text-[var(--color-text-secondary)] text-sm">
+              Workspace: <span className="font-medium text-[var(--color-text-primary)]">{activeWorkspace.name}</span>
+              {activeWorkspace.description && (
+                <span className="text-[var(--color-text-tertiary)]"> — {activeWorkspace.description}</span>
+              )}
+            </p>
+          )}
+          <p className="text-[var(--color-text-tertiary)] text-xs mt-1">
             Upload and manage your documents. Choose a chunking strategy before uploading.
           </p>
         </div>

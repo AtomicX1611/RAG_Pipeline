@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api", tags=["upload"])
 async def upload_files(
     files: list[UploadFile] = File(..., description="PDF or TXT files"),
     chunking_strategy: str = Form(default="recursive"),
+    workspace_id: str = Form(default="default"),
     user: UserProfile = Depends(get_current_user),
     upload_service: UploadService = Depends(get_upload_service),
 ):
@@ -26,10 +27,11 @@ async def upload_files(
     Upload one or more documents.
 
     The files are parsed, split using the chosen chunking strategy,
-    embedded, and stored in the user's personal vector collection.
+    embedded, and stored in the user's workspace vector collection.
     """
     result = await upload_service.process_upload(
         user_id=user.id,
+        workspace_id=workspace_id,
         files=files,
         chunking_strategy=chunking_strategy,
     )

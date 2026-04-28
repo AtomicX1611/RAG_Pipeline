@@ -10,10 +10,17 @@ export function ChatProvider({ children }) {
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState({});   // { [convId]: Message[] }
   const [isStreaming, setIsStreaming] = useState(false);
+  // Active workspace id — set by setActiveWorkspaceId from WorkspaceContext bridge
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
   const { isAuthenticated } = useAuth();
 
   /** Get messages for the active conversation */
   const activeMessages = messages[activeConversationId] || [];
+
+  /** Conversations filtered to the active workspace */
+  const workspaceConversations = activeWorkspaceId
+    ? conversations.filter((c) => c.workspace_id === activeWorkspaceId)
+    : conversations;
 
   /** Load conversations from backend on auth */
   useEffect(() => {
@@ -29,6 +36,7 @@ export function ChatProvider({ children }) {
           setConversations(convs.map((c) => ({
             id: c.id,
             title: c.title,
+            workspace_id: c.workspace_id || 'default',
             preview: c.preview || '',
             createdAt: c.createdAt,
             messageCount: c.messageCount || 0,
@@ -38,13 +46,20 @@ export function ChatProvider({ children }) {
       .catch(() => { /* silent — backend may be cold */ });
   }, [isAuthenticated]);
 
+  /** When workspace changes, clear the active conversation */
+  useEffect(() => {
+    setActiveConversationId(null);
+  }, [activeWorkspaceId]);
+
   /** Create a new conversation and make it active */
   const createConversation = useCallback(async () => {
+    const wsId = activeWorkspaceId || 'default';
     try {
-      const created = await chatService.createConversation('New Conversation');
+      const created = await chatService.createConversation('New Conversation', wsId);
       const newConv = {
         id: created.id,
         title: created.title || 'New Conversation',
+        workspace_id: created.workspace_id || wsId,
         preview: '',
         createdAt: created.createdAt || new Date().toISOString(),
         messageCount: 0,
@@ -59,6 +74,7 @@ export function ChatProvider({ children }) {
       const newConv = {
         id,
         title: 'New Conversation',
+        workspace_id: wsId,
         preview: '',
         createdAt: new Date().toISOString(),
         messageCount: 0,
@@ -68,7 +84,7 @@ export function ChatProvider({ children }) {
       setActiveConversationId(id);
       return id;
     }
-  }, []);
+  }, [activeWorkspaceId]);
 
   /** Select an existing conversation */
   const selectConversation = useCallback((id) => {
@@ -99,16 +115,18 @@ export function ChatProvider({ children }) {
   /** Send a message using SSE streaming */
   const sendMessage = useCallback(
     async (text, options = {}) => {
+      const wsId = activeWorkspaceId || 'default';
       let convId = activeConversationId;
 
       // Auto-create conversation if none active
       if (!convId) {
         convId = await (async () => {
           try {
-            const created = await chatService.createConversation(deriveTitle(text));
+            const created = await chatService.createConversation(deriveTitle(text), wsId);
             const newConv = {
               id: created.id,
               title: created.title || deriveTitle(text),
+              workspace_id: created.workspace_id || wsId,
               preview: '',
               createdAt: created.createdAt || new Date().toISOString(),
               messageCount: 0,
@@ -122,6 +140,7 @@ export function ChatProvider({ children }) {
             const newConv = {
               id,
               title: deriveTitle(text),
+              workspace_id: wsId,
               preview: '',
               createdAt: new Date().toISOString(),
               messageCount: 0,
@@ -178,7 +197,8 @@ export function ChatProvider({ children }) {
         chatService.sendMessageStream(
           convId,
           text,
-          options,
+          // Forward workspace_id alongside other options
+          { ...options, workspaceId: wsId },
           {
             onToken: (token) => {
               setMessages((prev) => {
@@ -225,7 +245,6 @@ export function ChatProvider({ children }) {
             },
             onError: (err) => {
               setIsStreaming(false);
-              // Update the placeholder with the actual error message
               setMessages((prev) => {
                 const msgs = prev[convId] || [];
                 return {
@@ -248,16 +267,19 @@ export function ChatProvider({ children }) {
         );
       });
     },
-    [activeConversationId],
+    [activeConversationId, activeWorkspaceId],
   );
 
   return (
     <ChatContext.Provider
       value={{
-        conversations,
+        conversations: workspaceConversations,
+        allConversations: conversations,
         activeConversationId,
         activeMessages,
         isStreaming,
+        activeWorkspaceId,
+        setActiveWorkspaceId,
         createConversation,
         selectConversation,
         deleteConversation,

@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useChat } from '../hooks/useChat';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { useApp } from '../store/AppContext';
+import { useWorkspace } from '../store/WorkspaceContext';
 import ChatMessage from '../components/chat/ChatMessage';
 import ChatInput from '../components/chat/ChatInput';
 import FileUpload from '../components/upload/FileUpload';
@@ -25,6 +26,8 @@ export default function ChatPage() {
     setRetrievalMethod,
     showUploadZone,
   } = useApp();
+
+  const { activeWorkspace } = useWorkspace();
 
   const {
     uploadedFiles,
@@ -61,9 +64,14 @@ export default function ChatPage() {
               <div className="w-20 h-20 rounded-2xl gradient-bg flex items-center justify-center shadow-lg mb-6 animate-float">
                 <span className="text-4xl text-white font-bold">N</span>
               </div>
-              <h2 className="text-2xl font-semibold gradient-text mb-2">
+              <h2 className="text-2xl font-semibold gradient-text mb-1">
                 Welcome to {APP_NAME}
               </h2>
+              {activeWorkspace && (
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-1">
+                  Workspace context: <span className="font-medium text-[var(--color-text-secondary)]">{activeWorkspace.name}</span>
+                </p>
+              )}
               <p className="text-[var(--color-text-secondary)] text-sm mb-8 leading-relaxed">
                 Upload your documents and ask questions. I&apos;ll find the most relevant information using advanced RAG techniques.
               </p>
