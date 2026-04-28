@@ -30,10 +30,12 @@ class UploadService:
         settings: Settings,
         chunking_service: ChunkingService,
         vector_repo: VectorRepository,
+        analytics_service=None,
     ) -> None:
         self._settings = settings
         self._chunking = chunking_service
         self._vector_repo = vector_repo
+        self._analytics = analytics_service
         self._upload_dir = Path(settings.UPLOAD_DIR)
         self._upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -50,12 +52,14 @@ class UploadService:
         """
         processed = 0
         total_chunks = 0
+        processed_filenames = []
 
         for file in files:
             self._validate_file(file)
 
         for file in files:
             try:
+                await file.seek(0)
                 text = await self._extract_text(file)
                 if not text.strip():
                     logger.warning("File %s produced empty text, skipping", file.filename)
@@ -70,6 +74,8 @@ class UploadService:
                 stored = self._vector_repo.store_documents(user_id, chunks)
                 total_chunks += stored
                 processed += 1
+                if file.filename:
+                    processed_filenames.append(file.filename)
                 logger.info(
                     "Processed %s → %d chunks (strategy=%s)",
                     file.filename, stored, chunking_strategy,
@@ -81,6 +87,13 @@ class UploadService:
                 raise RAGPipelineError(
                     f"Failed to process {file.filename}: {exc}"
                 ) from exc
+
+        # Record analytics event
+        if self._analytics and processed > 0:
+            self._analytics.record_upload(user_id, chunking_strategy, processed_filenames)
+
+        if processed == 0:
+            raise FileValidationError("Could not extract text from any of the uploaded files (they might be image-only).")
 
         return {
             "success": True,
@@ -114,24 +127,58 @@ class UploadService:
         raise FileValidationError(f"Cannot extract text from {ext}")
 
     async def _extract_pdf_text(self, file: UploadFile) -> str:
-        """Extract text from PDF using pypdf."""
-        # Save to a temp file so pypdf can read it
+        """Extract text from PDF using PyMuPDF (fitz), with an OCR fallback to GPT-4o."""
         temp_path = self._upload_dir / f"{uuid.uuid4().hex}_{file.filename}"
         try:
+            await file.seek(0)
             content = await file.read()
+            logger.info("Read %d bytes from %s", len(content), file.filename)
             temp_path.write_bytes(content)
 
-            from pypdf import PdfReader
+            import fitz  # PyMuPDF
+            import base64
+            from langchain_core.messages import HumanMessage
+            from langchain_openai import ChatOpenAI
 
-            reader = PdfReader(str(temp_path))
+            doc = fitz.open(str(temp_path))
             pages: list[str] = []
-            for page in reader.pages:
-                text = page.extract_text()
-                if text:
+            
+            vision_llm = None
+
+            for page in doc:
+                text = page.get_text()
+                
+                # If PyMuPDF couldn't extract text (e.g. Scanned PDF/Images), use GPT-4o OCR
+                if not text.strip():
+                    logger.info("No text layer found on page, falling back to Vision OCR")
+                    pix = page.get_pixmap()
+                    img_bytes = pix.tobytes("png")
+                    b64_image = base64.b64encode(img_bytes).decode("utf-8")
+                    
+                    if not vision_llm:
+                        vision_llm = ChatOpenAI(
+                            model="gpt-4o", 
+                            openai_api_key=self._settings.OPENAI_API_KEY
+                        )
+
+                    msg = HumanMessage(
+                        content=[
+                            {"type": "text", "text": "Extract all text from this image exactly as written. Do not add any additional conversational text. If there is no text, return an empty string."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}", "detail": "high"}}
+                        ]
+                    )
+                    res = await vision_llm.ainvoke([msg])
+                    text = res.content
+
+                if text and text.strip():
                     pages.append(text)
+            
+            doc.close()
 
             return "\n\n".join(pages)
         finally:
-            # Clean up temp file
             if temp_path.exists():
-                temp_path.unlink()
+                try:
+                    temp_path.unlink()
+                except Exception as e:
+                    logger.warning("Could not delete temp file %s: %s", temp_path, e)

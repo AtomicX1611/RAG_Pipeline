@@ -14,6 +14,7 @@ from .config import Settings, get_settings
 from .repositories.conversation_repository import ConversationRepository
 from .repositories.vector_repository import VectorRepository
 from .schemas.auth import UserProfile
+from .services.analytics_service import AnalyticsService
 from .services.auth_service import AuthService
 from .services.chunking_service import ChunkingService
 from .services.conversation_service import ConversationService
@@ -31,12 +32,15 @@ def create_services(settings: Settings) -> dict:
     vector_repo = VectorRepository(settings)
     conv_repo = ConversationRepository()
     chunking_svc = ChunkingService(settings)
+    analytics_svc = AnalyticsService(conv_repo, vector_repo)
 
     return {
         "auth_service": AuthService(settings),
-        "upload_service": UploadService(settings, chunking_svc, vector_repo),
-        "rag_service": RAGService(settings, vector_repo, conv_repo),
+        "upload_service": UploadService(settings, chunking_svc, vector_repo, analytics_svc),
+        "rag_service": RAGService(settings, vector_repo, conv_repo, analytics_svc),
         "conversation_service": ConversationService(conv_repo),
+        "analytics_service": analytics_svc,
+        "vector_repo": vector_repo,
     }
 
 
@@ -68,3 +72,11 @@ def get_rag_service(request: Request) -> RAGService:
 
 def get_conversation_service(request: Request) -> ConversationService:
     return request.app.state.conversation_service
+
+
+def get_analytics_service(request: Request) -> AnalyticsService:
+    return request.app.state.analytics_service
+
+
+def get_vector_repository(request: Request) -> VectorRepository:
+    return request.app.state.vector_repo

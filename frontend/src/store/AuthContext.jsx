@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import * as authService from '../services/authService';
 
 const AuthContext = createContext(null);
@@ -8,7 +8,7 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem('auth_token'),
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // START WITH TRUE TO AVOID FLICKER IF AUTHENTICATING
 
   const login = useCallback(async (credential) => {
     setLoading(true);
@@ -41,6 +41,11 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
   }, []);
+
+  // Validate the auth token on mount
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
   return (
     <AuthContext.Provider

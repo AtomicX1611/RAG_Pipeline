@@ -1,9 +1,10 @@
+import { NavLink, useNavigate } from 'react-router-dom';
 import ConversationItem from './ConversationItem';
 import { useAuth } from '../../store/AuthContext';
 import { APP_NAME } from '../../utils/constants';
 
 /**
- * Left sidebar — conversation history, new chat button, user profile.
+ * Left sidebar — navigation, conversation history, user profile.
  */
 export default function Sidebar({
   conversations,
@@ -15,6 +16,13 @@ export default function Sidebar({
   onClose,
 }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleNewChat = async () => {
+    await onNewChat();
+    navigate('/chat');
+    onClose();
+  };
 
   return (
     <>
@@ -46,7 +54,7 @@ export default function Sidebar({
 
           <button
             id="new-chat-button"
-            onClick={onNewChat}
+            onClick={handleNewChat}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5
                        rounded-xl border border-dashed border-[var(--color-border-hover)]
                        text-[var(--color-text-secondary)] text-sm font-medium
@@ -60,13 +68,41 @@ export default function Sidebar({
           </button>
         </div>
 
+        {/* Nav links */}
+        <nav className="px-3 pb-2 space-y-1">
+          {NAV_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? 'bg-[var(--color-accent-glow)] text-[var(--color-accent-secondary)] font-medium border border-[var(--color-border-accent)]'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]'
+                }`
+              }
+            >
+              <span className="text-base">{link.icon}</span>
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="px-3 mb-2">
+          <div className="h-px bg-[var(--color-border-primary)]" />
+        </div>
+
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)] px-2 mb-2">
+            Recent Chats
+          </p>
           {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <div className="w-12 h-12 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center mb-3">
+            <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center mb-2">
                 <svg
-                  className="w-6 h-6 text-[var(--color-text-tertiary)]"
+                  className="w-5 h-5 text-[var(--color-text-tertiary)]"
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round"
@@ -74,8 +110,7 @@ export default function Sidebar({
                   />
                 </svg>
               </div>
-              <p className="text-sm text-[var(--color-text-tertiary)]">No conversations yet</p>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-1">Start a new chat to begin</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">No conversations yet</p>
             </div>
           ) : (
             conversations.map((conv) => (
@@ -83,7 +118,7 @@ export default function Sidebar({
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
-                onSelect={onSelectConversation}
+                onSelect={(id) => { onSelectConversation(id); navigate('/chat'); onClose(); }}
                 onDelete={onDeleteConversation}
               />
             ))
@@ -94,11 +129,15 @@ export default function Sidebar({
         {user && (
           <div className="p-3 border-t border-[var(--color-border-primary)]">
             <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[var(--color-bg-hover)] transition-colors duration-200">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center border border-[var(--color-border-primary)]">
-                <span className="text-sm font-medium text-[var(--color-accent-secondary)]">
-                  {user.name?.[0]?.toUpperCase() || 'U'}
-                </span>
-              </div>
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center border border-[var(--color-border-primary)]">
+                  <span className="text-sm font-medium text-[var(--color-accent-secondary)]">
+                    {user.name?.[0]?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{user.name}</p>
                 <p className="text-xs text-[var(--color-text-tertiary)] truncate">{user.email}</p>
@@ -124,3 +163,10 @@ export default function Sidebar({
     </>
   );
 }
+
+const NAV_LINKS = [
+  { to: '/chat', label: 'Chat', icon: '💬' },
+  { to: '/documents', label: 'Documents', icon: '📁' },
+  { to: '/analytics', label: 'Analytics', icon: '📊' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
+];

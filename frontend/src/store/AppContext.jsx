@@ -6,6 +6,7 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chunkingStrategy, setChunkingStrategy] = useState(DEFAULT_CHUNKING_STRATEGY);
+  const [retrievalMethod, setRetrievalMethod] = useState('similarity');
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(null); // null | 0–100
   const [showUploadZone, setShowUploadZone] = useState(false);
@@ -45,6 +46,8 @@ export function AppProvider({ children }) {
         toggleSidebar,
         chunkingStrategy,
         setChunkingStrategy,
+        retrievalMethod,
+        setRetrievalMethod,
         uploadedFiles,
         addFiles,
         removeFile,

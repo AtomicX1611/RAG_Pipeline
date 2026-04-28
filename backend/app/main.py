@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .dependencies import create_services
 from .middleware.logging_middleware import LoggingMiddleware
-from .routers import auth, chat, conversations, upload
+from .routers import analytics, auth, chat, conversations, documents, upload
 from .utils.exceptions import register_exception_handlers
 from .utils.logging_config import setup_logging, get_logger
 
@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="NeuralSearch API",
         description="RAG-powered document intelligence backend",
-        version="1.0.0",
+        version="2.0.0",
         lifespan=lifespan,
     )
 
@@ -73,11 +73,13 @@ def create_app() -> FastAPI:
     app.include_router(upload.router)
     app.include_router(chat.router)
     app.include_router(conversations.router)
+    app.include_router(documents.router)
+    app.include_router(analytics.router)
 
     # ── Health check ──────────────────────────────────────────────────────
     @app.get("/api/health", tags=["health"])
     async def health():
-        return {"status": "ok", "service": "NeuralSearch API"}
+        return {"status": "ok", "service": "NeuralSearch API", "version": "2.0.0"}
 
     return app
 

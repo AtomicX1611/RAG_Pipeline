@@ -17,6 +17,7 @@ openai==1.58.1
 # Document loading & vector store
 chromadb==0.5.23
 pypdf==5.1.0
+pymupdf==1.25.3
 
 # Utilities
 httpx==0.28.1

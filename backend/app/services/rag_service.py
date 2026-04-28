@@ -1,16 +1,20 @@
 """
-RAG service — retrieval + answer generation.
+RAG service — retrieval + answer generation with streaming support.
 
 Retrieval methods (from existing pipeline):
   • similarity   — basic k-nearest (retrieval.py)
   • multi_query  — LLM query variations (multi_query_retrieval.py)
   • rrf          — multi-query + RRF (reciprocal_rank_fusion.py)
+
+Context-aware rewriting mirrors context_RAG.py.
+Answer generation mirrors answer_generation.py.
 """
 
 from __future__ import annotations
 
 import uuid
 from collections import defaultdict
+from typing import AsyncGenerator
 
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -40,10 +44,12 @@ class RAGService:
         self, settings: Settings,
         vector_repo: VectorRepository,
         conversation_repo: ConversationRepository,
+        analytics_service=None,
     ) -> None:
         self._settings = settings
         self._vector_repo = vector_repo
         self._conv_repo = conversation_repo
+        self._analytics = analytics_service
         self._llm = ChatOpenAI(model="gpt-4o", openai_api_key=settings.OPENAI_API_KEY)
         self._query_llm = ChatOpenAI(
             model="gpt-4o", temperature=0, openai_api_key=settings.OPENAI_API_KEY,
@@ -72,8 +78,88 @@ class RAGService:
         docs = [d for d, _ in doc_score_pairs]
         answer_text = self._generate_answer(message, docs, history)
         sources = self._build_sources(doc_score_pairs)
+
         await self._persist(user_id, conversation_id, message, answer_text)
+
+        # Record analytics
+        if self._analytics:
+            self._analytics.record_query(user_id, retrieval_method)
+
         return ChatResponse(answer=answer_text, sources=sources)
+
+    async def answer_stream(
+        self, user_id: str, conversation_id: str,
+        message: str, retrieval_method: str = "similarity",
+    ) -> AsyncGenerator[str, None]:
+        """Stream answer tokens as Server-Sent Events."""
+        import json as _json
+
+        if retrieval_method not in VALID_RETRIEVAL_METHODS:
+            retrieval_method = "similarity"
+
+        try:
+            history = await self._conv_repo.get_messages(user_id, conversation_id)
+            search_query = self._rewrite_query(message, history)
+            doc_score_pairs = self._retrieve(user_id, search_query, retrieval_method)
+        except RAGPipelineError as exc:
+            err_msg = str(exc)
+            if "401" in err_msg or "invalid_api_key" in err_msg or "Incorrect API key" in err_msg:
+                error_text = "OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in backend/.env and restart the server."
+            else:
+                error_text = f"Retrieval failed: {err_msg}"
+            yield f"event: error\ndata: {_json.dumps({'detail': error_text})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+        except Exception as exc:
+            yield f"event: error\ndata: {_json.dumps({'detail': str(exc)})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        if not doc_score_pairs:
+            no_doc_msg = (
+                "I don't have any documents to search through yet. "
+                "Please upload some documents first."
+            )
+            await self._persist(user_id, conversation_id, message, no_doc_msg)
+            yield f"data: {no_doc_msg}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        docs = [d for d, _ in doc_score_pairs]
+        sources = self._build_sources(doc_score_pairs)
+
+        # Send sources metadata first as a special event
+        sources_data = [s.model_dump() for s in sources]
+        yield f"event: sources\ndata: {_json.dumps(sources_data)}\n\n"
+
+        # Stream answer tokens
+        msgs = self._build_answer_messages(message, docs, history)
+        full_answer = ""
+        try:
+            for chunk in self._llm.stream(msgs):
+                token = chunk.content
+                if token:
+                    full_answer += token
+                    # Escape newlines for SSE
+                    escaped = token.replace("\n", "\\n")
+                    yield f"data: {escaped}\n\n"
+        except Exception as exc:
+            err_msg = str(exc)
+            if "401" in err_msg or "invalid_api_key" in err_msg:
+                error_text = "OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in backend/.env and restart the server."
+            else:
+                error_text = f"Generation failed: {err_msg}"
+            # Yield error event if we have partial content, complete what we have
+            if not full_answer:
+                yield f"event: error\ndata: {_json.dumps({'detail': error_text})}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+        # Persist after streaming completes (even partial answers)
+        if full_answer:
+            await self._persist(user_id, conversation_id, message, full_answer)
+        if self._analytics:
+            self._analytics.record_query(user_id, retrieval_method)
 
     # ── contextual rewriting (context_RAG.py) ─────────────────────────────
 
@@ -152,7 +238,7 @@ class RAGService:
 
     # ── answer generation (answer_generation.py) ──────────────────────────
 
-    def _generate_answer(self, question: str, docs: list[Document], history: list[Message]) -> str:
+    def _build_answer_messages(self, question: str, docs: list[Document], history: list[Message]) -> list:
         context = "\n".join(f"- {d.page_content}" for d in docs)
         combined = (
             f"Based on the following documents, answer this question: {question}\n\n"
@@ -168,6 +254,10 @@ class RAGService:
             cls = HumanMessage if m.role == "user" else AIMessage
             msgs.append(cls(content=m.content))
         msgs.append(HumanMessage(content=combined))
+        return msgs
+
+    def _generate_answer(self, question: str, docs: list[Document], history: list[Message]) -> str:
+        msgs = self._build_answer_messages(question, docs, history)
         try:
             return self._llm.invoke(msgs).content
         except Exception as exc:

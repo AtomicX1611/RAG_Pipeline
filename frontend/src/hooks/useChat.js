@@ -18,14 +18,15 @@ export function useChat() {
     sendMessage: ctxSendMessage,
   } = useChatContext();
 
-  const { chunkingStrategy } = useApp();
+  const { chunkingStrategy, retrievalMethod } = useApp();
 
   const sendMessage = useCallback(
     (text) =>
       ctxSendMessage(text, {
         chunkingStrategy,
+        retrievalMethod,
       }),
-    [ctxSendMessage, chunkingStrategy],
+    [ctxSendMessage, chunkingStrategy, retrievalMethod],
   );
 
   return {

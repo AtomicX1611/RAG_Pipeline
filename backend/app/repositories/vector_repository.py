@@ -81,8 +81,11 @@ class VectorRepository:
         """Return the number of documents in the user's collection."""
         store = self._get_store(user_id)
         try:
-            return store._collection.count()
-        except Exception:
+            count = store._collection.count()
+            logger.info("Found %d items in collection for user %s", count, user_id)
+            return count
+        except Exception as e:
+            logger.error("Error getting collection count for user %s: %s", user_id, str(e), exc_info=True)
             return 0
 
     def delete_collection(self, user_id: str) -> None:

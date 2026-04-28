@@ -5,6 +5,9 @@ import { AppProvider } from './store/AppContext';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import DocumentsPage from './pages/DocumentsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import SettingsPage from './pages/SettingsPage';
 
 /**
  * Redirect to login if not authenticated.
@@ -25,6 +28,16 @@ function PublicRoute({ children }) {
 }
 
 function AppRoutes() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-900 overflow-hidden">
+         <div className="animate-pulse text-xl text-gray-400">Loading neural pathways...</div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
       <Route
@@ -45,6 +58,9 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/chat" replace />} />
         <Route path="chat" element={<ChatPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
